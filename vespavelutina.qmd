@@ -1,0 +1,225 @@
+---
+title: "Vespa Velutina in Flanders"
+author: "Federica Gazzelloni"
+date: "2024-02-01"
+page-navigation: true
+format: 
+  html:
+    theme: cosmo
+    code-overflow: wrap
+    code-link: true
+    code-copy: true
+    code-fold: true
+    code-summary: "Show the code"
+    code-block-border-left: "#cdbdcc"
+    code-block-bg: "gray90"
+    fig-align: center
+    fig-width: 8
+    fig-height: 5
+    linkcolor: "#88398a"
+    link-external-newwindow: true   
+    author-meta: "Federica Gazzelloni"
+    toc: true
+editor: visual
+---
+
+## GBif Data - download
+
+Download `Vespa Velutina` data from [Global Biodiversity Information Facility (GBIF) for](https://www.gbif.org/) with the `{spocc}` package, which provide an R-interface to GBIF.
+
+#### Load necessary libraries
+
+```{r vespavelutina-1}
+#| message: false
+#| warning: false
+# Load the libraries
+library(tidyverse) # tools for data wrangling
+library(spocc) # gbif R-interface for data download
+library(giscoR) # Belgium polygons
+library(ggspatial) # set the north arrow and the units bar
+```
+
+
+#### Download data from GBIF
+```{r vespavelutina-2}
+#| cache: true
+#| code-fold: false
+do_gbif <- spocc::occ("Vespa velutina",
+                      from = "gbif",
+                      date = c("2019-01-01","2021-01-01"),
+                      limit = 10000,
+                      has_coords = TRUE
+                      )
+
+do_gbif1 <- data.frame(do_gbif$gbif$data)
+```
+
+
+
+```{r vespavelutina-3}
+#| echo: false
+#| eval: false
+do_gbif1%>%glimpse # Check the content of the download
+```
+
+
+```{r vespavelutina-4}
+#| echo: false
+# select the variable of interest and the final dimension
+data <- do_gbif1%>%
+  select(
+    Vespa_velutina.name,
+    Vespa_velutina.year,
+    Vespa_velutina.longitude,
+    Vespa_velutina.latitude,
+    Vespa_velutina.coordinateUncertaintyInMeters,
+    Vespa_velutina.continent,
+    Vespa_velutina.country,
+    Vespa_velutina.countryCode,
+    Vespa_velutina.stateProvince
+    ) 
+
+# data %>% dim
+```
+
+
+```{r vespavelutina-5}
+#| echo: false
+# filter the data as needed and check the dimension
+data1 <- data%>%
+  filter(Vespa_velutina.continent=="EUROPE",
+         Vespa_velutina.country=="Belgium",
+         str_detect(Vespa_velutina.stateProvince,"Flanders"))%>%
+  select(-Vespa_velutina.continent,
+         -Vespa_velutina.country)
+
+# data1%>%dim
+```
+
+
+
+
+#### Year-range of interest: 2019-2021
+```{r vespavelutina-6}
+data1%>%
+  count(Vespa_velutina.year)
+```
+
+#### Observations by sub-location in Flanders: East and West Flanders 
+
+```{r vespavelutina-7}
+data1%>%count(Vespa_velutina.stateProvince)
+```
+
+
+#### Two sub-types of `Vespa velutina` are found in Flanders:
+
+```{r vespavelutina-8}
+data1%>%count(Vespa_velutina.name)
+```
+
+
+
+```{r vespavelutina-9}
+#| echo: false
+# set the theme options for the plots
+theme_set(theme(
+  text = element_text(size = 12, family = "Roboto Condensed"),
+  plot.title = element_text(size=14,hjust = 0,face="bold"),
+  plot.subtitle = element_text(hjust = 0),
+  plot.caption = element_text(hjust = 0.5)
+  ))
+```
+
+
+
+#### Download the Belgium regions polygons for mapping
+```{r vespavelutina-10}
+#| warning: false
+#| message: false
+#| cache: true
+#| code-fold: false
+
+# download Belgium regions polygons for mapping
+be <- giscoR::gisco_get_nuts(resolution = "1", 
+                     country = "BE", 
+                     nuts_level = 2) 
+```
+
+
+## Map of Vespa velutina in Flanders
+
+::: {.callout}
+"Map tracking the distribution of Asian Hornets (Vespa velutina) in Flanders from 2019 to 2021, highlighting the spread of this invasive species and aiding conservation efforts."
+:::
+
+```{r vespavelutina-11}
+#| warning: false
+#| message: false
+#| fig-align: "center"
+ggplot()+
+  # draw the be polygons
+  geom_sf(data=be,fill="#e3e4bb")+ 
+  # identify where the species is observed
+  geom_point(data=data1, 
+             aes(Vespa_velutina.longitude,Vespa_velutina.latitude,
+                 fill=factor(Vespa_velutina.year)),
+             shape=21,stroke=0.5,alpha=0.8,
+             key_glyph=draw_key_rect,
+             color="#bfc0ca")+
+  # set a north arrow
+  ggspatial::annotation_north_arrow(location="bl",
+                                    pad_y = unit(1, "cm"),
+                                    height = unit(0.8, "cm"),
+                                    width = unit(0.8, "cm"))+
+  # set a unit scale
+  ggspatial::annotation_scale(pad_x = unit(0, "cm"),
+                              pad_y = unit(0.5, "cm"))+
+  # specify custom colors
+  scale_fill_viridis_d(option = "H",
+                       guide = guide_legend(
+                         keyheight = unit(0.01, units = "mm"),
+                         keywidth = unit(10, units = "mm")))+
+  # set the title/subtitle and caption
+  labs(title="Asian hornets (Vespa velutina) in Flanders (BE)",
+       subtitle = "Occurrences by Year",fill="Year",
+       caption = "\nDataSource: Global Biodiversity Information Facility (GBIF) | Map: Federica Gazzelloni\n")+
+  # assure the proportion of the coordinates
+  coord_sf(crs=4326)+
+  # set a clean theme
+  theme_void()
+```
+
+```{r vespavelutina-12}
+#| echo: false
+#| eval: false
+
+# save the output as png
+ggsave("vespavelutina_map.png",bg="#bfc0ca",
+       height =5)
+```
+
+## Barplot of the observations by Year
+
+```{r vespavelutina-13}
+#| message: false
+#| warning: false
+#| fig-align: "center"
+
+data1%>%
+  ggplot(aes(factor(Vespa_velutina.year)))+
+  geom_histogram(stat="count",fill="#e3e4bb")+
+    labs(title="Asian hornets (Vespa velutina) in Flanders (BE)",
+       subtitle = "Observations by Year",fill="Year",
+       x="Time(Year)",
+       caption = "\nDataSource: Global Biodiversity Information Facility (GBIF) | Map: Federica Gazzelloni\n")
+```
+
+
+```{r vespavelutina-14}
+#| echo: false
+#| eval: false
+# save the output as png
+ggsave("barplot.png",bg="#bfc0ca",height = 5)
+```
+
